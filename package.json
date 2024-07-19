@@ -1,0 +1,42 @@
+{
+  "name": "wave-app",
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "serve": "vite preview"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.95.1",
+    "@tailwindcss/forms": "^0.3.4",
+    "eth-revert-reason": "^1.0.3",
+    "ethers": "^5.5.1",
+    "framer-motion": "^5.3.1",
+    "install": "^0.13.0",
+    "npm": "^10.8.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-icons": "^4.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.11",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^7.16.1",
+    "@typescript-eslint/parser": "^7.16.1",
+    "@vitejs/plugin-react": "^1.0.0",
+    "autoprefixer": "^10.4.19",
+    "eslint": "^8.57.0",
+    "eslint-config-airbnb": "^19.0.2",
+    "eslint-plugin-import": "^2.25.3",
+    "eslint-plugin-jsx-a11y": "^6.5.1",
+    "eslint-plugin-react": "^7.34.4",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "postcss": "^8.4.39",
+    "postcss-nested": "^6.0.1",
+    "tailwindcss": "^2.2.19",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.3",
+    "vite": "^2.6.4"
+  }
+}
