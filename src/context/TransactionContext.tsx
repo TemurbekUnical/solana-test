@@ -1,6 +1,14 @@
 import { ethers } from "ethers";
 import { createContext, useCallback, useEffect, useState } from "react";
 import { contractABI, contractAddress } from "../utils/constants";
+import {
+  Connection,
+  LAMPORTS_PER_SOL,
+  ParsedTransactionWithMeta,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+} from "@solana/web3.js";
 
 const createEthereumContract = () => {
   const provider = new ethers.providers.Web3Provider(ethereum);
@@ -15,6 +23,22 @@ const createEthereumContract = () => {
 };
 const { ethereum } = window as any;
 
+const NETWORK = "https://api.devnet.solana.com";
+
+interface SolanaWindow extends Window {
+  solana?: {
+    isPhantom?: boolean;
+    connect: (params: {
+      onlyIfTrusted: boolean;
+    }) => Promise<{ publicKey: PublicKey }>;
+    signAndSendTransaction: (
+      transaction: Transaction
+    ) => Promise<{ signature: string }>;
+  };
+}
+
+declare const window: SolanaWindow;
+
 const useTransactions = () => {
   const [formData, setformData] = useState({
     addressTo: "",
@@ -28,74 +52,67 @@ const useTransactions = () => {
   const [transactionCount, setTransactionCount] = useState(
     localStorage.getItem("transactionCount")
   );
-  const [transactions, setTransactions] = useState([]);
+  const [transactions, setTransactions] = useState<ParsedTransactionWithMeta[]>(
+    []
+  );
 
   const handleChange = (e: any, name: string) => {
     setformData((prevState) => ({ ...prevState, [name]: e.target.value }));
   };
 
-  const getAllTransactions = async () => {
+  const getAllTransactions = async (publicKey: PublicKey) => {
     try {
-      if (ethereum) {
-        const transactionsContract = createEthereumContract();
+      const connection = new Connection(NETWORK, "confirmed");
+      const signatures = await connection.getSignaturesForAddress(publicKey);
 
-        const availableTransactions =
-          await transactionsContract.getAllTransactions();
+      const transactions = await Promise.all(
+        signatures.map((sig) => connection.getParsedTransaction(sig.signature))
+      );
 
-        const structuredTransactions = availableTransactions.map(
-          (transaction: any) => ({
-            addressTo: transaction.receiver,
-            addressFrom: transaction.sender,
-            timestamp: new Date(
-              transaction.timestamp.toNumber() * 1000
-            ).toLocaleString(),
-            message: transaction.message,
-            keyword: transaction.keyword,
-            amount: parseInt(transaction.amount._hex) / 10 ** 18,
-          })
-        );
-
-        console.log(structuredTransactions);
-
-        setTransactions(structuredTransactions);
-      } else {
-        console.log("Ethereum is not present");
-      }
+      setTransactions(
+        transactions.filter(
+          (tx): tx is ParsedTransactionWithMeta => tx !== null
+        )
+      );
     } catch (error) {
-      console.log(error);
+      console.error("Error fetching transactions:", error);
     }
   };
 
-  const getAccountBalance = async (account: any) => {
+  const getAccountBalance = async (publicKey: PublicKey) => {
     try {
-      const blnc = await ethereum.request({
-        method: "eth_getBalance",
-        params: [account, "latest"],
-      });
-      setBalance(ethers.utils.formatEther(blnc));
+      const connection = new Connection(NETWORK, "confirmed");
+      const balance = await connection.getBalance(publicKey);
+      setBalance(String(balance / LAMPORTS_PER_SOL));
     } catch (error) {
-      console.log(error);
+      console.error("Error getting balance:", error);
     }
   };
 
   const checkIfWalletIsConnect = async () => {
     try {
-      if (!ethereum) return alert("Please install MetaMask.");
+      const { solana } = window;
+      debugger;
 
-      const accounts = await ethereum.request({ method: "eth_accounts" });
-      if (accounts.length) {
-        setCurrentAccount(accounts[0]);
-        getAccountBalance(accounts[0]);
-        getAllTransactions();
+      if (solana) {
+        if (solana.isPhantom) {
+          console.log("Phantom wallet found!");
+          const response = await solana.connect({ onlyIfTrusted: true });
+          console.log(
+            "Connected with Public Key:",
+            response.publicKey.toString()
+          );
+          setCurrentAccount(response.publicKey.toString());
+          getAccountBalance(response.publicKey);
+          getAllTransactions(response.publicKey);
+        }
       } else {
-        console.log("No accounts found");
+        alert("Solana object not found! Get a Phantom Wallet 👻");
       }
     } catch (error) {
-      console.log(error);
+      console.error(error);
     }
-    return null;
   };
-
   const checkIfTransactionsExists = async () => {
     try {
       if (ethereum) {
@@ -116,67 +133,45 @@ const useTransactions = () => {
   };
 
   const connectWallet = async () => {
-    try {
-      if (!ethereum) return alert("Please install MetaMask.");
+    const { solana } = window;
 
-      const accounts = await ethereum.request({
-        method: "eth_requestAccounts",
-      });
-
-      setCurrentAccount(accounts[0]);
-      getAccountBalance(accounts[0]);
-      return window.location.reload();
-    } catch (error) {
-      console.log(error);
-
-      throw new Error("No ethereum object");
+    if (solana) {
+      const response = await solana.connect({ onlyIfTrusted: false });
+      console.log("Connected with Public Key:", response.publicKey.toString());
+      setCurrentAccount(response.publicKey.toString());
+      getAccountBalance(response.publicKey);
+      getAllTransactions(response.publicKey);
     }
   };
 
   const sendTransaction = async () => {
+    if (!currentAccount) return;
+
     try {
-      if (ethereum) {
-        const { addressTo, amount, keyword, message } = formData;
-        const transactionsContract = createEthereumContract();
-        const parsedAmount = ethers.utils.parseEther(amount);
+      const connection = new Connection(NETWORK, "confirmed");
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: new PublicKey(currentAccount),
+          toPubkey: new PublicKey(currentAccount), // Sending to self for demo
+          lamports: 0.1 * LAMPORTS_PER_SOL,
+        })
+      );
 
-        await ethereum.request({
-          method: "eth_sendTransaction",
-          params: [
-            {
-              from: currentAccount,
-              to: addressTo,
-              gas: "0x5208",
-              value: parsedAmount._hex,
-            },
-          ],
-        });
+      const { solana } = window;
 
-        const transactionHash = await transactionsContract.addToBlockchain(
-          addressTo,
-          parsedAmount,
-          message,
-          keyword
-        );
-
-        setIsLoading(true);
-        console.log(`Loading - ${transactionHash.hash}`);
-        await transactionHash.wait();
-        console.log(`Success - ${transactionHash.hash}`);
-        setIsLoading(false);
-
-        const transactionsCount =
-          await transactionsContract.getTransactionCount();
-
-        setTransactionCount(transactionsCount.toNumber());
-        window.location.reload();
-      } else {
-        console.log("No ethereum object");
+      if (!solana) {
+        alert("Please install Phantom wallet");
+        return;
       }
-    } catch (error) {
-      console.log(error);
 
-      throw new Error("No ethereum object");
+      const { signature } = await solana.signAndSendTransaction(transaction);
+      await connection.confirmTransaction(signature);
+
+      console.log("Transaction sent:", signature);
+      getAccountBalance(new PublicKey(currentAccount));
+      getAllTransactions(new PublicKey(currentAccount));
+    } catch (error) {
+      console.error("Error sending transaction:", error);
     }
   };
 

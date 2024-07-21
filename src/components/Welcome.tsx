@@ -41,6 +41,8 @@ const Welcome = () => {
 
     sendTransaction();
   };
+  console.log(window);
+  
 
   return (
     <div className="flex w-full justify-center items-center">

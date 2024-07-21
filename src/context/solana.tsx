@@ -1,5 +1,5 @@
-import { Connection, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, ParsedTransactionWithMeta } from '@solana/web3.js';
 
 const NETWORK = "https://api.devnet.solana.com";
 
@@ -16,6 +16,7 @@ declare const window: SolanaWindow;
 export default function SolanaIntegration() {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
+  const [transactions, setTransactions] = useState<ParsedTransactionWithMeta[]>([]);
 
   useEffect(() => {
     const onLoad = async () => {
@@ -39,6 +40,7 @@ export default function SolanaIntegration() {
           );
           setWalletAddress(response.publicKey.toString());
           getBalance(response.publicKey);
+          getAllTransactions(response.publicKey);
         }
       } else {
         alert('Solana object not found! Get a Phantom Wallet 👻');
@@ -56,6 +58,7 @@ export default function SolanaIntegration() {
       console.log('Connected with Public Key:', response.publicKey.toString());
       setWalletAddress(response.publicKey.toString());
       getBalance(response.publicKey);
+      getAllTransactions(response.publicKey);
     }
   };
 
@@ -66,6 +69,21 @@ export default function SolanaIntegration() {
       setBalance(balance / LAMPORTS_PER_SOL);
     } catch (error) {
       console.error('Error getting balance:', error);
+    }
+  };
+
+  const getAllTransactions = async (publicKey: PublicKey) => {
+    try {
+      const connection = new Connection(NETWORK, "confirmed");
+      const signatures = await connection.getSignaturesForAddress(publicKey);
+      
+      const transactions = await Promise.all(
+        signatures.map(sig => connection.getParsedTransaction(sig.signature))
+      );
+
+      setTransactions(transactions.filter((tx): tx is ParsedTransactionWithMeta => tx !== null));
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
     }
   };
 
@@ -94,6 +112,7 @@ export default function SolanaIntegration() {
       
       console.log('Transaction sent:', signature);
       getBalance(new PublicKey(walletAddress));
+      getAllTransactions(new PublicKey(walletAddress));
     } catch (error) {
       console.error('Error sending transaction:', error);
     }
@@ -110,6 +129,16 @@ export default function SolanaIntegration() {
           <p>Connected wallet: {walletAddress}</p>
           <p>Balance: {balance} SOL</p>
           <button onClick={sendTransaction}>Send 0.1 SOL to self (demo)</button>
+          <h2>Recent Transactions</h2>
+          <ul>
+            {transactions.map((tx, index) => (
+              <li key={index}>
+                Signature: {tx.transaction.signatures[0]}
+                <br />
+                Block Time: {tx.blockTime ? new Date(tx.blockTime * 1000).toLocaleString() : 'Unknown'}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
